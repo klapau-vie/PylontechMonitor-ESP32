@@ -11,6 +11,7 @@
 #include <circular_log.h>
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
+#include <ElegantOTA.h>
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2  // Standard für ESP32 DevKits
@@ -121,7 +122,8 @@ void setup() {
   });
   
   server.begin(); 
-  
+  ElegantOTA.begin(&server);
+
 #ifdef ENABLE_MQTT
   mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
   mqttClient.setBufferSize(2048); // Größerer Buffer für ESP32
@@ -355,11 +357,12 @@ void handleRoot() {
     "<input type='text' name='code' placeholder='Kommando...'/> "
     "<button type='submit' class='btn'>Senden</button>"
     "</form>"
-    // Die normalen Buttons folgen danach
+// Die normalen Buttons folgen danach
     "<a href='/req?code=pwr' class='btn'>PWR Daten</a>"
     "<a href='/req?code=help' class='btn'>Hilfe</a>"
     "<a href='/req?code=log' class='btn'>Event Log</a>"
     "<a href='/log' class='btn'>System Log</a>"
+    "<a href='/update' class='btn' style='background:#f59e0b;'>OTA Update</a>" // <-- NEU HINZUFÜGEN
     "<a href='/reboot' onclick=\"return confirm('System wirklich neu starten?');\" class='btn btn-danger'>Reboot</a>"
     "</div>", 
     10000 - strlen(szTmp) - 1
@@ -453,12 +456,20 @@ bool parsePwrResponse(const char* pStr)
 
   memset(&g_stack, 0, sizeof(g_stack));
 
-  for(int ix=0; ix<MAX_PYLON_BATTERIES; ix++)
+for(int ix=0; ix<MAX_PYLON_BATTERIES; ix++)
   {
     char szToFind[32];
-    snprintf(szToFind, sizeof(szToFind), "\r\r\n%d     ", ix+1);
+    
+    // Korrektur für Pylontech-Spaltenausrichtung:
+    // 1-9 = 5 Leerzeichen, ab 10 = 4 Leerzeichen
+    if (ix + 1 < 10) {
+      snprintf(szToFind, sizeof(szToFind), "\r\r\n%d     ", ix+1);
+    } else {
+      snprintf(szToFind, sizeof(szToFind), "\r\r\n%d    ", ix+1);
+    }
+    
     const char* pLineStart = strstr(pStr, szToFind);
-    if(pLineStart == NULL) continue; 
+    if(pLineStart == NULL) continue;
 
     pLineStart += 3; 
 
@@ -543,6 +554,7 @@ void loop() {
 #endif
   ArduinoOTA.handle();
   server.handleClient();
+  ElegantOTA.loop();
 
   int bytesAv = BatterySerial.available();
   if(bytesAv > 0)
@@ -619,10 +631,16 @@ void publishAutoDiscovery() {
     String topicVolt = String(MQTT_TOPIC_ROOT) + i + "/voltage";
     publishSensorDiscovery(idVolt.c_str(), nameVolt.c_str(), "V", "voltage", topicVolt.c_str());
 
+    mqttClient.loop();
+    delay(10);
+
     String idState = String("bat") + i + "_state";
     String nameState = String("Batterie ") + i + " Status";
     String topicState = String(MQTT_TOPIC_ROOT) + i + "/state";
     publishSensorDiscovery(idState.c_str(), nameState.c_str(), "", "", topicState.c_str());
+
+    mqttClient.loop();
+    delay(10);
   }
 }
 
@@ -645,6 +663,9 @@ void pushBatteryDataToMqtt(const batteryStack& lastSentData, bool forceUpdate)
     const char* newState = g_stack.batts[ix].isIdle() ? "Idle" : g_stack.batts[ix].isCharging() ? "Charging" : g_stack.batts[ix].isDischarging() ? "Discharging" : "Unknown";
     const char* oldState = lastSentData.batts[ix].isIdle() ? "Idle" : lastSentData.batts[ix].isCharging() ? "Charging" : lastSentData.batts[ix].isDischarging() ? "Discharging" : "Unknown";
     mqtt_publish_s(ixBuff, newState, oldState, forceUpdate);
+
+    mqttClient.loop();
+    delay(10);
   }
 }
 
