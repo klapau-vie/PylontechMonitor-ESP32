@@ -6,7 +6,7 @@ Ein schlanker, stabiler und responsiver ESP32-Datenlogger zum Auslesen von Pylon
 
 Dieses Projekt ist ein Fork / eine Weiterentwicklung des großartigen ursprünglichen Projekts von **[hidaba](https://github.com/hidaba/PylontechMonitoring)**. 
 
-![Web UI Screenshot]([dashboard.png])
+![Web UI Screenshot](dashboard.png)
 
 ## ✨ Features & Neuerungen
 * **ioBroker & HA ready:** Sendet rohe, saubere MQTT-Werte. Überträgt Auto-Discovery-Daten, sodass der Objektbaum vollautomatisch und fehlerfrei aufgebaut wird (kein Matroschka-Effekt mehr!).
